@@ -16,7 +16,10 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Build Release APK (unsigned)
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      - name: Build Release APK
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Generate Keystore (auto)
@@ -28,23 +31,28 @@ jobs:
             -alias release \
             -keyalg RSA -keysize 2048 -validity 10000
 
-      - name: Sign the APK manually
+      - name: Sign the APK with jarsigner
         run: |
           jarsigner -verbose \
             -keystore temp-release-key.jks \
             -storepass 123456 \
             -keypass 123456 \
-            app/build/outputs/apk/release/app-release-unsigned.apk \
+            app/build/outputs/apk/release/app-release.apk \
             release
 
-      - name: Align and Optimize APK
+      - name: Align APK (zipalign)
         run: |
+          # create an aligned copy (do not overwrite original in case something goes wrong)
           zipalign -f 4 \
-            app/build/outputs/apk/release/app-release-unsigned.apk \
-            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/app-release.apk \
+            app/build/outputs/apk/release/app-release-aligned.apk
 
-      - name: Upload Signed APK
+      - name: Verify APK signature (optional but useful)
+        run: |
+          apksigner verify app/build/outputs/apk/release/app-release-aligned.apk || true
+
+      - name: Upload Signed & Aligned APK
         uses: actions/upload-artifact@v4
         with:
           name: Mihon-Release
-          path: app/build/outputs/apk/release/app-release.apk
+          path: app/build/outputs/apk/release/app-release-aligned.apk
