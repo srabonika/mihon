@@ -1,0 +1,50 @@
+name: Build Signed Release APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build Release APK (unsigned)
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Generate Keystore (auto)
+        run: |
+          keytool -genkey -v -keystore temp-release-key.jks \
+            -storepass 123456 \
+            -keypass 123456 \
+            -dname "CN=GitHub,O=CI,C=US" \
+            -alias release \
+            -keyalg RSA -keysize 2048 -validity 10000
+
+      - name: Sign the APK manually
+        run: |
+          jarsigner -verbose \
+            -keystore temp-release-key.jks \
+            -storepass 123456 \
+            -keypass 123456 \
+            app/build/outputs/apk/release/app-release-unsigned.apk \
+            release
+
+      - name: Align and Optimize APK
+        run: |
+          zipalign -f 4 \
+            app/build/outputs/apk/release/app-release-unsigned.apk \
+            app/build/outputs/apk/release/app-release.apk
+
+      - name: Upload Signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mihon-Release
+          path: app/build/outputs/apk/release/app-release.apk
