@@ -1,4 +1,4 @@
-name: Build APK
+name: Build Signed Release APK
 
 on:
   workflow_dispatch:
@@ -16,19 +16,44 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Cache Gradle
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/*.kt') }}
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Build Release APKs
+        run: ./gradlew assembleRelease --stacktrace
 
-      - name: Upload APK
+      - name: Find universal APK
+        id: apk
+        run: |
+          FILE=$(ls app/build/outputs/apk/release/mihon-v*.apk | head -n 1)
+          echo "apk=$FILE" >> $GITHUB_OUTPUT
+
+      - name: Generate Keystore
+        run: |
+          keytool -genkey -v -keystore temp-release-key.jks \
+            -storepass 123456 \
+            -keypass 123456 \
+            -dname "CN=GitHub,O=CI,C=US" \
+            -alias release \
+            -keyalg RSA -keysize 2048 -validity 10000
+
+      - name: Sign the APK
+        run: |
+          jarsigner -verbose \
+            -keystore temp-release-key.jks \
+            -storepass 123456 \
+            -keypass 123456 \
+            "${{ steps.apk.outputs.apk }}" \
+            release
+
+      - name: Align APK
+        run: |
+          zipalign -f 4 \
+            "${{ steps.apk.outputs.apk }}" \
+            app/build/outputs/apk/release/mihon-custom-release.apk
+
+      - name: Upload Signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: Mihon-Custom-APK
-          path: app/build/outputs/apk/debug/*.apk
+          name: Mihon-Custom-Release
+          path: app/build/outputs/apk/release/mihon-custom-release.apk
