@@ -22,13 +22,7 @@ jobs:
       - name: Build Release APKs
         run: ./gradlew assembleRelease --stacktrace
 
-      - name: Find universal APK
-        id: apk
-        run: |
-          FILE=$(ls app/build/outputs/apk/release/mihon-v*.apk | head -n 1)
-          echo "apk=$FILE" >> $GITHUB_OUTPUT
-
-      - name: Generate Keystore
+      - name: Generate Keystore (auto)
         run: |
           keytool -genkey -v -keystore temp-release-key.jks \
             -storepass 123456 \
@@ -37,23 +31,29 @@ jobs:
             -alias release \
             -keyalg RSA -keysize 2048 -validity 10000
 
+      - name: Find the universal APK
+        id: findapk
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/release -name "*-v*.apk" -not -name "*arm*" -not -name "*x86*" -not -name "*foss*")
+          echo "APK_PATH=$APK_PATH" >> $GITHUB_OUTPUT
+
       - name: Sign the APK
         run: |
           jarsigner -verbose \
             -keystore temp-release-key.jks \
             -storepass 123456 \
             -keypass 123456 \
-            "${{ steps.apk.outputs.apk }}" \
+            "${{ steps.findapk.outputs.APK_PATH }}" \
             release
 
       - name: Align APK
         run: |
           zipalign -f 4 \
-            "${{ steps.apk.outputs.apk }}" \
-            app/build/outputs/apk/release/mihon-custom-release.apk
+            "${{ steps.findapk.outputs.APK_PATH }}" \
+            signed-release.apk
 
       - name: Upload Signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: Mihon-Custom-Release
-          path: app/build/outputs/apk/release/mihon-custom-release.apk
+          name: Mihon-Signed-Release
+          path: signed-release.apk
