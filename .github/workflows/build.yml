@@ -32,5 +32,3 @@ jobs:
         with:
           name: Mihon-Custom-APK
           path: app/build/outputs/apk/debug/*.apk
-
-This code worked earlier
