@@ -1,0 +1,29 @@
+name: Build ARM64 Debug APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Build ONLY arm64-v8a debug APK
+        run: ./gradlew assembleArm64Debug --stacktrace
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: mihon-arm64-v8a-debug
+          path: app/build/outputs/apk/arm64-v8a/debug/*.apk
